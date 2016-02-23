@@ -16,7 +16,7 @@ function shouldSkipFile({opts, file} = {}) {
 
 function safeguardVisitor(visitor) {
   return function visitorProxy(path, state) {
-    if (path.node && path.node.loc && !isMarkedAsIgnored(path)) {
+    if (path.node && path.node.loc && !isMarkedAsIgnored(path.node)) {
       visitor(path, state); // visitors don't return
     }
   };
@@ -70,7 +70,7 @@ export default function instrumenter({types: t}) {
     const marker = createMarker(state, {loc, tags});
     const node = isEmptyNode ? t.identifier('undefined') : path.node;
     path.replaceWith(markAsIgnored(
-      t.sequenceExpression([marker, node])
+      t.sequenceExpression([marker, markAsIgnored(node)])
     ));
   }
 
@@ -94,9 +94,14 @@ export default function instrumenter({types: t}) {
   }
 
   const visitor = {
+    ExpressionStatement: instrumentStatement,
+    UpdateExpression: instrumentExpression,
+    // BinaryExpression(path) {
+    //   instrument(path.get('left'));
+    //   instrument(path.get('right'));
+    // },
     BreakStatement: instrumentStatement,
     ContinueStatement: instrumentStatement,
-    ExpressionStatement: instrumentStatement,
     VariableDeclarator(path, state) {
       // let a = 42; ---> let a = (++count, 42);
       instrumentExpression(path.get('init'), state);
@@ -204,14 +209,7 @@ export default function instrumenter({types: t}) {
     //   if (alternate) {
     //     instrument(alternate);
     //   }
-    // },
-    // UpdateExpression(path) {
-    //   instrument(path.get('argument'));
-    // },
-    // BinaryExpression(path) {
-    //   instrument(path.get('left'));
-    //   instrument(path.get('right'));
-    // },
+    // }
   };
 
   Object.keys(visitor).forEach(key => {

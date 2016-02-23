@@ -15,16 +15,11 @@ export default function astify(any) {
   if (t.isNode(any)) {
     return any;
   }
-  if (typeof any === 'number') {
-    return t.numericLiteral(any);
-  }
-  if (typeof any === 'string') {
-    return t.stringLiteral(any);
-  }
   if (Array.isArray(any)) {
     return astifyArray(any);
   }
   if (any && typeof any === 'object') {
     return astifyObject(any);
   }
+  return t.valueToNode(any);
 }
