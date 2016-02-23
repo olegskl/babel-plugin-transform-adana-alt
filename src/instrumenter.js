@@ -94,16 +94,28 @@ export default function instrumenter({types: t}) {
   }
 
   const visitor = {
+    // Expression: instrumentExpression,
     ExpressionStatement: instrumentStatement,
     UpdateExpression: instrumentExpression,
-    // BinaryExpression(path) {
-    //   instrument(path.get('left'));
-    //   instrument(path.get('right'));
-    // },
+    BinaryExpression(path, state) {
+      // Source: true === true
+      // Instrumented: (++count, true) === (++count, true)
+      instrumentExpression(path.get('left'), state);
+      instrumentExpression(path.get('right'), state);
+    },
     BreakStatement: instrumentStatement,
     ContinueStatement: instrumentStatement,
+    VariableDeclaration(path, state) {
+      // Source: const a = 'a';
+      // Instrumented: ++count; const a = 'a';
+      instrumentStatement(path, state, [
+        'variable',
+        'statement'
+      ]);
+    },
     VariableDeclarator(path, state) {
-      // let a = 42; ---> let a = (++count, 42);
+      // Source: let a = 42, b = 43;
+      // Instrumented: let a = (++count, 42), b = (++count, 43);
       instrumentExpression(path.get('init'), state);
     },
     ImportDeclaration(path, state) {
@@ -179,7 +191,7 @@ export default function instrumenter({types: t}) {
           'expression'
         ]);
       }
-    }
+    },
     // ConditionalExpression(path) {
     //   instrument(path.get('consequent'));
     //   instrument(path.get('alternate'));
@@ -202,18 +214,21 @@ export default function instrumenter({types: t}) {
     //   instrument(path.get('test'));
     //   instrument(path.get('body'));
     // },
-    // IfStatement(path) {
-    //   instrument(path.get('test'));
-    //   instrument(path.get('consequent'));
-    //   const alternate = path.get('alternate');
-    //   if (alternate) {
-    //     instrument(alternate);
-    //   }
-    // }
+    IfStatement(path, state) {
+      // Source: if (true) {} else {}
+      // Instrumented: if ((++count, true)) { ++count; } else { ++count; }
+      instrumentExpression(path.get('test'), state);
+      instrumentBlock(path.get('consequent'), state, ['branch']);
+      if (path.has('alternate') && path.get('alternate').isBlockStatement()) {
+        instrumentBlock(path.get('alternate'), state, ['branch']);
+      }
+    }
   };
 
   Object.keys(visitor).forEach(key => {
-    visitor[key] = safeguardVisitor(visitor[key]);
+    visitor[key] = {
+      exit: safeguardVisitor(visitor[key])
+    };
   });
 
   return {

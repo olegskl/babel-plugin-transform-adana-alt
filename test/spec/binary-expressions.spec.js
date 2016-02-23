@@ -3,12 +3,12 @@ import runFixture from './helpers/run';
 import {isExpression} from './helpers/tag-assert';
 
 //
-// Update expressions
+// Binary expressions
 // --------------------
 
-test('coverage should count update expressions', t => {
+test('coverage should count binary expressions', t => {
   t.plan(2);
-  runFixture('update-expressions').then(({locations}) => {
+  runFixture('binary-expressions').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
     t.equal(expressionLocations.length, 2);
     t.equal(expressionLocations.every(el => el.count === 1), true);
