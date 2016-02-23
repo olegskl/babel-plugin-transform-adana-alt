@@ -12,6 +12,7 @@ export default function runFixture(fixtureName) {
       console.error(code)
       console.error('-'.repeat(60));
       const sandbox = {
+        require,
         global: {},
         exports: {}
       };

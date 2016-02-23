@@ -97,6 +97,26 @@ export default function instrumenter({types: t}) {
     BreakStatement: instrumentStatement,
     ContinueStatement: instrumentStatement,
     ExpressionStatement: instrumentStatement,
+    VariableDeclarator(path, state) {
+      // let a = 42; ---> let a = (++count, 42);
+      instrumentExpression(path.get('init'), state);
+    },
+    ImportDeclaration(path, state) {
+      // Source: import a from 'a';
+      // Instrumented: ++count; import a from 'a';
+      instrumentStatement(path, state, [
+        'import',
+        'statement'
+      ]);
+    },
+    ExportDeclaration(path, state) {
+      // Source: export {};
+      // Instrumented: ++count; export {};
+      instrumentStatement(path, state, [
+        'export',
+        'statement'
+      ]);
+    },
     ReturnStatement(path, state) {
       // Source: return x;
       // Instrumented: return ++count, x;
@@ -126,7 +146,7 @@ export default function instrumenter({types: t}) {
     ObjectMethod(path, state) {
       if (path.node.computed) {
         // Source: {['a'](){}}
-        // Instrumented: {[()]: (++count, function a() { ++count; }})
+        // Instrumented: {[(++count, 'a')]: (++count, function a() { ++count; }})
         instrumentExpression(path.get('key'), state);
         instrumentBlock(path.get('body'), state, ['function']);
       } else {
@@ -137,7 +157,7 @@ export default function instrumenter({types: t}) {
         const objProp = t.objectProperty(key, fnExpr);
         fnExpr.loc = objProp.loc = loc;
         path.replaceWith(objProp);
-        instrumentBlock(path.get('value').get('body'), state, ['function']);
+        // instrumentBlock(path.get('value').get('body'), state, ['function']);
       }
     },
     ArrowFunctionExpression(path, state) {
@@ -155,12 +175,6 @@ export default function instrumenter({types: t}) {
         ]);
       }
     }
-    // ExportDeclaration(path) {
-    //   instrument(path);
-    // },
-    // VariableDeclarator(path) {
-    //   instrument(path);
-    // },
     // ConditionalExpression(path) {
     //   instrument(path.get('consequent'));
     //   instrument(path.get('alternate'));
@@ -198,10 +212,6 @@ export default function instrumenter({types: t}) {
     //   instrument(path.get('left'));
     //   instrument(path.get('right'));
     // },
-    // FunctionDeclaration(path, state) {
-    //   // instrumentBlock(path.get('body'), state);
-    //   instrumentStatement(path, state);
-    // }
   };
 
   Object.keys(visitor).forEach(key => {

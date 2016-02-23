@@ -9,3 +9,11 @@ export function isStatement({tags}) {
 export function isExpression({tags}) {
   return tags.some(tag => tag === 'expression');
 }
+
+export function isImport({tags}) {
+  return tags.some(tag => tag === 'import');
+}
+
+export function isExport({tags}) {
+  return tags.some(tag => tag === 'export');
+}
