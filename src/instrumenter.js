@@ -28,12 +28,10 @@ export default function instrumenter({types: t}) {
     const {locations, variable} = getCoverageMeta(state);
     const id = locations.length;
     locations.push({id, loc, tags, count: 0});
-    return markAsIgnored(t.expressionStatement(
-      t.unaryExpression('++', t.memberExpression(
-        t.memberExpression(variable, t.numericLiteral(id), true),
-        t.identifier('count')
-      ))
-    ));
+    return markAsIgnored(t.unaryExpression('++', t.memberExpression(
+      t.memberExpression(variable, t.numericLiteral(id), true),
+      t.identifier('count')
+    )));
   }
 
   function isInstrumentableStatement({parentPath}) {
@@ -66,41 +64,97 @@ export default function instrumenter({types: t}) {
   // }
 
   // 42 ---> (++_counter[id].count, 42)
-  // function instrumentExpression(path, state) {
-  //   const isEmptyNode = !path.node;
-  //   const loc = isEmptyNode ? path.parent.loc : path.node.loc;
-  //   const tags = ['line'];
-  //   const marker = createMarker(state, {loc, tags});
-  //   const node = isEmptyNode ? t.identifier('undefined') : path.node;
-  //   path.replaceWith(markAsIgnored(t.sequenceExpression([marker, node])));
-  // }
+  function instrumentExpression(path, state, tags = ['expression']) {
+    const isEmptyNode = !path.node;
+    const loc = isEmptyNode ? path.parent.loc : path.node.loc;
+    const marker = createMarker(state, {loc, tags});
+    const node = isEmptyNode ? t.identifier('undefined') : path.node;
+    path.replaceWith(markAsIgnored(
+      t.sequenceExpression([marker, node])
+    ));
+  }
 
   // break; ---> ++_ankaracoverage[0].count; break;
   function instrumentStatement(path, state, tags = ['statement']) {
     if (!isInstrumentableStatement(path)) { return; }
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags});
-    path.insertBefore(marker);
+    path.insertBefore(markAsIgnored(
+      t.expressionStatement(marker)
+    ));
   }
 
   // {} ---> { ++_ankaracoverage[0].count; }
   function instrumentBlock(path, state, tags) {
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags});
-    path.unshiftContainer('body', marker);
+    path.unshiftContainer('body', markAsIgnored(
+      t.expressionStatement(marker)
+    ));
   }
 
   const visitor = {
-    // BreakStatement: instrumentStatement,
-    // ContinueStatement: instrumentStatement,
-    // ExpressionStatement: instrumentStatement,
+    BreakStatement: instrumentStatement,
+    ContinueStatement: instrumentStatement,
+    ExpressionStatement: instrumentStatement,
+    ReturnStatement(path, state) {
+      // Source: return x;
+      // Instrumented: return ++count, x;
+      instrumentExpression(path.get('argument'), state);
+    },
     FunctionDeclaration(path, state) {
+      // Source: function () {}
+      // Instrumented: ++count; function () { ++count; }
       instrumentStatement(path, state);
       instrumentBlock(path.get('body'), state, ['function']);
+    },
+    FunctionExpression(path, state) {
+      // Source: a = function () {}
+      // Instrumented: a = function () { ++count; }
+      instrumentBlock(path.get('body'), state, ['function']);
+    },
+    ObjectProperty(path, state) {
+      // Source: {a: 'b'}
+      // Instrumented: {a: (++count, 'b')}
+      instrumentExpression(path.get('value'), state);
+      if (path.node.computed) {
+        // Source: {['a']: 'b'}
+        // Instrumented: _defineProperty(o, (++count, 'a'), (++count, 'b'));
+        instrumentExpression(path.get('key'), state);
+      }
+    },
+    ObjectMethod(path, state) {
+      if (path.node.computed) {
+        // Source: {['a'](){}}
+        // Instrumented: {[()]: (++count, function a() { ++count; }})
+        instrumentExpression(path.get('key'), state);
+        instrumentBlock(path.get('body'), state, ['function']);
+      } else {
+        // Source: {a(){}}
+        // Instrumented: {a: (++count, function a() { ++count; }})
+        const {key, params, body, loc} = path.node;
+        const fnExpr = t.functionExpression(key, params, body);
+        const objProp = t.objectProperty(key, fnExpr);
+        fnExpr.loc = objProp.loc = loc;
+        path.replaceWith(objProp);
+        instrumentBlock(path.get('value').get('body'), state, ['function']);
+      }
+    },
+    ArrowFunctionExpression(path, state) {
+      const body = path.get('body');
+      if (body.isBlockStatement()) {
+        // Source: x => {}
+        // Instrumented: x => { ++count; }
+        instrumentBlock(body, state, ['function']);
+      } else {
+        // Source: x => x
+        // Instrumented: x => ++count, x
+        instrumentExpression(body, state, [
+          'function',
+          'expression'
+        ]);
+      }
     }
-    // ReturnStatement(path, state) {
-    //   instrumentExpression(path.get('argument'), state);
-    // }
     // ExportDeclaration(path) {
     //   instrument(path);
     // },
