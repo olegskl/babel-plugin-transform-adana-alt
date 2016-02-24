@@ -85,10 +85,10 @@ export default function instrumenter({types: t}) {
   }
 
   // {} ---> { ++_ankaracoverage[0].count; }
-  function instrumentBlock(path, state, tags) {
+  function instrumentBlock(container, path, state, tags) {
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags});
-    path.unshiftContainer('body', markAsIgnored(
+    path.unshiftContainer(container, markAsIgnored(
       t.expressionStatement(marker)
     ));
   }
@@ -143,12 +143,12 @@ export default function instrumenter({types: t}) {
       // Source: function () {}
       // Instrumented: ++count; function () { ++count; }
       instrumentStatement(path, state);
-      instrumentBlock(path.get('body'), state, ['function']);
+      instrumentBlock('body', path.get('body'), state, ['function']);
     },
     FunctionExpression(path, state) {
       // Source: a = function () {}
       // Instrumented: a = function () { ++count; }
-      instrumentBlock(path.get('body'), state, ['function']);
+      instrumentBlock('body', path.get('body'), state, ['function']);
     },
     ObjectProperty(path, state) {
       // Source: {a: 'b'}
@@ -165,7 +165,7 @@ export default function instrumenter({types: t}) {
         // Source: {['a'](){}}
         // Instrumented: {[(++count, 'a')]: (++count, function a() { ++count; }})
         instrumentExpression(path.get('key'), state);
-        instrumentBlock(path.get('body'), state, ['function']);
+        instrumentBlock('body', path.get('body'), state, ['function']);
       } else {
         // Source: {a(){}}
         // Instrumented: {a: (++count, function a() { ++count; }})
@@ -182,7 +182,7 @@ export default function instrumenter({types: t}) {
       if (body.isBlockStatement()) {
         // Source: x => {}
         // Instrumented: x => { ++count; }
-        instrumentBlock(body, state, ['function']);
+        instrumentBlock('body', body, state, ['function']);
       } else {
         // Source: x => x
         // Instrumented: x => ++count, x
@@ -192,13 +192,6 @@ export default function instrumenter({types: t}) {
         ]);
       }
     },
-    // SwitchCase(path) {
-    //   instrument(path);
-    //   instrument(path.get('test'));
-    // },
-    // SwitchStatement(path) {
-    //   instrument(path.get('discriminant'));
-    // },
     // ForStatement(path) {
     //   instrument(path.get('body'));
     // },
@@ -214,9 +207,9 @@ export default function instrumenter({types: t}) {
       // Source: if (true) {} else {}
       // Instrumented: if ((++count, true)) { ++count; } else { ++count; }
       instrumentExpression(path.get('test'), state);
-      instrumentBlock(path.get('consequent'), state, ['branch']);
+      instrumentBlock('body', path.get('consequent'), state, ['branch']);
       if (path.has('alternate') && path.get('alternate').isBlockStatement()) {
-        instrumentBlock(path.get('alternate'), state, ['branch']);
+        instrumentBlock('body', path.get('alternate'), state, ['branch']);
       }
     },
     ConditionalExpression(path, state) {
@@ -226,6 +219,20 @@ export default function instrumenter({types: t}) {
       instrumentExpression(path.get('consequent'), state, ['expression', 'branch']);
       instrumentExpression(path.get('alternate'), state, ['expression', 'branch']);
       instrumentExpression(path, state);
+    },
+    SwitchStatement(path, state) {
+      // Source: switch (a) {}
+      // Instrumented: ++count; switch (++count, as) {}
+      instrumentExpression(path.get('discriminant'), state);
+      instrumentStatement(path, state);
+    },
+    SwitchCase(path, state) {
+      // Source: case 'a':
+      // Instrumented: case (++count, 'a'): ++count;
+      instrumentBlock('consequent', path, state, ['branch']);
+      if (path.has('test')) {
+        instrumentExpression(path.get('test'), state);
+      }
     }
   };
 
