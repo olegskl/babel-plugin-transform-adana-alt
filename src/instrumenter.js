@@ -76,9 +76,17 @@ export default function instrumenter({types: t}) {
       exit: instrumentExpression
     },
     BinaryExpression: {
+      // Source: true === true
+      // Instrumented: (++count, true) === (++count, true)
       exit(path, state) {
-        // Source: true === true
-        // Instrumented: (++count, true) === (++count, true)
+        instrumentExpression(path.get('left'), state);
+        instrumentExpression(path.get('right'), state);
+      }
+    },
+    LogicalExpression: {
+      // Source: false || true
+      // Instrumented: (++count, false) || (++count, true)
+      exit(path, state) {
         instrumentExpression(path.get('left'), state);
         instrumentExpression(path.get('right'), state);
       }
