@@ -222,10 +222,24 @@ export default function instrumenter({types: t}) {
         instrumentBlock('body', path.get('body'), state, ['function']);
       }
     },
+    ArrayExpression: {
+      exit(path, state) {
+        // Source: [42]
+        // Instrumented: ++count; [(++count, 42)]
+        // Don't instrument destructuring:
+        if (path.parentPath.isPattern()) { return; }
+        path.get('elements').forEach(el => instrumentExpression(el, state));
+        if (!path.parentPath.isExpression()) {
+          instrumentExpression(path, state);
+        }
+      }
+    },
     ObjectProperty: {
       exit(path, state) {
         // Source: {a: 'b'}
         // Instrumented: {a: (++count, 'b')}
+        // Don't instrument destructuring:
+        if (path.parentPath.isPattern()) { return; }
         instrumentExpression(path.get('value'), state);
         if (path.node.computed) {
           // Source: {['a']: 'b'}
