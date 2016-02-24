@@ -25,10 +25,6 @@ function safeguardVisitor(visitor) {
 
 export default function instrumenter({types: t}) {
 
-  function isInstrumentableStatement({parentPath}) {
-    return !parentPath.isStatement();
-  }
-
   function createMarker(state, {loc, tags}) {
     const {locations, variable} = getCoverageMeta(state);
     const id = locations.length;
@@ -52,7 +48,6 @@ export default function instrumenter({types: t}) {
 
   // break; ---> ++_ankaracoverage[0].count; break;
   function instrumentStatement(path, state, tags = ['statement']) {
-    if (!isInstrumentableStatement(path)) { return; }
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags});
     path.insertBefore(markAsIgnored(
@@ -71,9 +66,13 @@ export default function instrumenter({types: t}) {
 
   const visitor = {
     ExpressionStatement: {
+      // Source: 42;
+      // Instrumented: ++count; 42;
       exit: instrumentStatement
     },
     UpdateExpression: {
+      // Source: ++a;
+      // Instrumented: ++count; ++count, ++a;
       exit: instrumentExpression
     },
     BinaryExpression: {
@@ -118,9 +117,10 @@ export default function instrumenter({types: t}) {
       }
     },
     ExportDeclaration: {
-      exit(path, state) {
-        // Source: export {};
-        // Instrumented: ++count; export {};
+      // Source: export {};
+      // Instrumented: ++count; export {};
+      enter(path, state) {
+        markAsIgnored(path.get('declaration'));
         instrumentStatement(path, state, [
           'export',
           'statement'
@@ -238,9 +238,10 @@ export default function instrumenter({types: t}) {
       }
     },
     ForStatement: {
-      exit(path, state) {
-        // Source: for (let a = 1; a < 2; a++) {}
-        // Instrumented: ++count; for (let a = 1; a < 2; a++) { ++count; }
+      // Source: for (let a = 1; a < 2; a++) {}
+      // Instrumented: ++count; for (let a = 1; a < 2; a++) { ++count; }
+      enter(path, state) {
+        markAsIgnored(path.get('init'));
         instrumentBlock('body', path.get('body'), state, ['branch']);
         instrumentStatement(path, state);
       }
@@ -252,10 +253,9 @@ export default function instrumenter({types: t}) {
         // Source: for (let a in {x: 42}) {}
         // Instrumented: ++count; for (let a in (++count, {x: 42})) { ++count; }
         const left = path.get('left');
+        markAsIgnored(left);
         if (left.isVariableDeclaration()) {
           left.get('declarations').map(markAsIgnored);
-        } else {
-          markAsIgnored(left);
         }
         instrumentExpression(path.get('right'), state);
         instrumentBlock('body', path.get('body'), state, ['branch']);
@@ -269,10 +269,9 @@ export default function instrumenter({types: t}) {
         // Source: for (let a of []) {}
         // Instrumented: ++count; for (let a of (++count, [])) { ++count; }
         const left = path.get('left');
+        markAsIgnored(left);
         if (left.isVariableDeclaration()) {
           left.get('declarations').map(markAsIgnored);
-        } else {
-          markAsIgnored(left);
         }
         instrumentExpression(path.get('right'), state);
         instrumentBlock('body', path.get('body'), state, ['branch']);
