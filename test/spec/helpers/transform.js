@@ -5,7 +5,10 @@ export default function transformFixture(fixturePath) {
   return new Promise(function promiseExecutor(resolve, reject) {
     transformFile(fixturePath, {
       presets: ['es2015'],
-      plugins: [instrumenter],
+      plugins: [
+        'transform-class-properties',
+        instrumenter
+      ],
       sourceType: 'module',
       ast: false
     }, function transformFileCallback(error, result) {

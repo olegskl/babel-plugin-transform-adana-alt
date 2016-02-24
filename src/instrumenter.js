@@ -70,6 +70,11 @@ export default function instrumenter({types: t}) {
       // Instrumented: ++count; 42;
       exit: instrumentStatement
     },
+    CallExpression: {
+      // Source: foo()
+      // Instrumented: ++count, foo()
+      exit: instrumentExpression
+    },
     UpdateExpression: {
       // Source: ++a;
       // Instrumented: ++count; ++count, ++a;
@@ -173,6 +178,33 @@ export default function instrumenter({types: t}) {
         // Source: return x;
         // Instrumented: return ++count, x;
         instrumentExpression(path.get('argument'), state);
+      }
+    },
+    ClassDeclaration: {
+      // Source: class Foo {}
+      // Instrumented: ++count; class Foo {}
+      exit: instrumentStatement
+    },
+    ClassProperty: {
+      // Source: static a = 42;
+      // Instrumented: static a = (++count, 42);
+      exit(path, state) {
+        instrumentExpression(path.get('value'), state);
+      }
+    },
+    ClassMethod: {
+      // Source: foo() {}
+      // Instrumented: foo() { ++count; }
+      exit(path, state) {
+        const tags = path.node.kind === 'constructor' ?
+          ['constructor', 'function'] :
+          ['function'];
+        instrumentBlock('body', path.get('body'), state, tags);
+        if (path.node.computed) {
+          // Source: ['x']() {}
+          // Instrumented: [(++count, 'x')](): { ++count }
+          instrumentExpression(path.get('key'), state);
+        }
       }
     },
     FunctionDeclaration: {
