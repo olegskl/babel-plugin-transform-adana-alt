@@ -17,12 +17,17 @@ function shouldSkipFile({opts, file} = {}) {
 function safeguardVisitor(visitor) {
   return function visitorProxy(path, state) {
     if (path.node && path.node.loc && !isMarkedAsIgnored(path.node)) {
+      markAsIgnored(path.node); // ensure path is visited only once
       visitor(path, state); // visitors don't return
     }
   };
 }
 
 export default function instrumenter({types: t}) {
+
+  function isInstrumentableStatement({parentPath}) {
+    return !parentPath.isStatement();
+  }
 
   function createMarker(state, {loc, tags}) {
     const {locations, variable} = getCoverageMeta(state);
@@ -33,35 +38,6 @@ export default function instrumenter({types: t}) {
       t.identifier('count')
     )));
   }
-
-  function isInstrumentableStatement({parentPath}) {
-    return !parentPath.isReturnStatement() &&
-      !parentPath.isExportDeclaration() &&
-      !parentPath.isFunctionDeclaration();
-  }
-
-  // function instrument(path, state) {
-  //   const marker = createMarker();
-  //   if (path.isExpression()) {
-  //     // 42 ---> (++_counter[id].count, 42)
-  //     path.replaceWith(markAsIgnored(t.sequenceExpression([marker, path.node])));
-  //   } else if (path.isBlockStatement()) {
-  //     // {} ---> { ++_counter[id].count; }
-  //     path.unshiftContainer('body', markAsIgnored(t.expressionStatement(marker)));
-  //   } else if (path.isSwitchCase()) {
-  //     // case 'a': {} ---> case 'a': { ++_counter[id].count }
-  //     path.unshiftContainer('consequent', markAsIgnored(t.expressionStatement(marker)));
-  //   } else if (path.isVariableDeclarator()) {
-  //     // let a = 42; ---> let a = (++_counter[id].count, 42);
-  //     path.get('init').replaceWith(markAsIgnored(t.sequenceExpression([marker, path.node.init])));
-  //   } else if (path.parentPath.isReturnStatement() && !path.parentPath.has('argument')) {
-  //     // return; ---> return (++_counter[id].count, undefined);
-  //     path.replaceWith(markAsIgnored(t.sequenceExpression([marker, t.identifier('undefined')])));
-  //   } else if (path.isStatement() && isInstrumentableStatement(path)) {
-  //     // a = 1; ---> ++_counter[id].count; a = 1;
-  //     path.insertBefore(markAsIgnored(t.expressionStatement(marker)));
-  //   }
-  // }
 
   // 42 ---> (++_counter[id].count, 42)
   function instrumentExpression(path, state, tags = ['expression']) {
@@ -94,152 +70,243 @@ export default function instrumenter({types: t}) {
   }
 
   const visitor = {
-    // Expression: instrumentExpression,
-    ExpressionStatement: instrumentStatement,
-    UpdateExpression: instrumentExpression,
-    BinaryExpression(path, state) {
-      // Source: true === true
-      // Instrumented: (++count, true) === (++count, true)
-      instrumentExpression(path.get('left'), state);
-      instrumentExpression(path.get('right'), state);
+    ExpressionStatement: {
+      exit: instrumentStatement
     },
-    BreakStatement: instrumentStatement,
-    ContinueStatement: instrumentStatement,
-    VariableDeclaration(path, state) {
-      // Source: const a = 'a';
-      // Instrumented: ++count; const a = 'a';
-      instrumentStatement(path, state, [
-        'variable',
-        'statement'
-      ]);
+    UpdateExpression: {
+      exit: instrumentExpression
     },
-    VariableDeclarator(path, state) {
-      // Source: let a = 42, b = 43;
-      // Instrumented: let a = (++count, 42), b = (++count, 43);
-      instrumentExpression(path.get('init'), state);
-    },
-    ImportDeclaration(path, state) {
-      // Source: import a from 'a';
-      // Instrumented: ++count; import a from 'a';
-      instrumentStatement(path, state, [
-        'import',
-        'statement'
-      ]);
-    },
-    ExportDeclaration(path, state) {
-      // Source: export {};
-      // Instrumented: ++count; export {};
-      instrumentStatement(path, state, [
-        'export',
-        'statement'
-      ]);
-    },
-    ReturnStatement(path, state) {
-      // Source: return x;
-      // Instrumented: return ++count, x;
-      instrumentExpression(path.get('argument'), state);
-    },
-    FunctionDeclaration(path, state) {
-      // Source: function () {}
-      // Instrumented: ++count; function () { ++count; }
-      instrumentStatement(path, state);
-      instrumentBlock('body', path.get('body'), state, ['function']);
-    },
-    FunctionExpression(path, state) {
-      // Source: a = function () {}
-      // Instrumented: a = function () { ++count; }
-      instrumentBlock('body', path.get('body'), state, ['function']);
-    },
-    ObjectProperty(path, state) {
-      // Source: {a: 'b'}
-      // Instrumented: {a: (++count, 'b')}
-      instrumentExpression(path.get('value'), state);
-      if (path.node.computed) {
-        // Source: {['a']: 'b'}
-        // Instrumented: _defineProperty(o, (++count, 'a'), (++count, 'b'));
-        instrumentExpression(path.get('key'), state);
+    BinaryExpression: {
+      exit(path, state) {
+        // Source: true === true
+        // Instrumented: (++count, true) === (++count, true)
+        instrumentExpression(path.get('left'), state);
+        instrumentExpression(path.get('right'), state);
       }
     },
-    ObjectMethod(path, state) {
-      if (path.node.computed) {
-        // Source: {['a'](){}}
-        // Instrumented: {[(++count, 'a')]: (++count, function a() { ++count; }})
-        instrumentExpression(path.get('key'), state);
-        instrumentBlock('body', path.get('body'), state, ['function']);
-      } else {
-        // Source: {a(){}}
-        // Instrumented: {a: (++count, function a() { ++count; }})
-        const {key, params, body, loc} = path.node;
-        const fnExpr = t.functionExpression(key, params, body);
-        const objProp = t.objectProperty(key, fnExpr);
-        fnExpr.loc = objProp.loc = loc;
-        path.replaceWith(objProp);
-        // instrumentBlock(path.get('value').get('body'), state, ['function']);
-      }
+    BreakStatement: {
+      exit: instrumentStatement
     },
-    ArrowFunctionExpression(path, state) {
-      const body = path.get('body');
-      if (body.isBlockStatement()) {
-        // Source: x => {}
-        // Instrumented: x => { ++count; }
-        instrumentBlock('body', body, state, ['function']);
-      } else {
-        // Source: x => x
-        // Instrumented: x => ++count, x
-        instrumentExpression(body, state, [
-          'function',
-          'expression'
+    ContinueStatement: {
+      exit: instrumentStatement
+    },
+    VariableDeclaration: {
+      exit(path, state) {
+        // Source: const a = 'a';
+        // Instrumented: ++count; const a = 'a';
+        instrumentStatement(path, state, [
+          'variable',
+          'statement'
         ]);
       }
     },
-    // ForStatement(path) {
-    //   instrument(path.get('body'));
-    // },
-    // WhileStatement(path) {
-    //   instrument(path.get('test'));
-    //   instrument(path.get('body'));
-    // },
-    // DoWhileStatement(path) {
-    //   instrument(path.get('test'));
-    //   instrument(path.get('body'));
-    // },
-    IfStatement(path, state) {
-      // Source: if (true) {} else {}
-      // Instrumented: if ((++count, true)) { ++count; } else { ++count; }
-      instrumentExpression(path.get('test'), state);
-      instrumentBlock('body', path.get('consequent'), state, ['branch']);
-      if (path.has('alternate') && path.get('alternate').isBlockStatement()) {
-        instrumentBlock('body', path.get('alternate'), state, ['branch']);
+    VariableDeclarator: {
+      exit(path, state) {
+        // Source: let a = 42, b = 43;
+        // Instrumented: let a = (++count, 42), b = (++count, 43);
+        instrumentExpression(path.get('init'), state);
       }
     },
-    ConditionalExpression(path, state) {
-      // Source: true ? 1 : 2
-      // Instrumented: ++count, (++count, true) ? (++count, 1) : (++count, 2)
-      instrumentExpression(path.get('test'), state);
-      instrumentExpression(path.get('consequent'), state, ['expression', 'branch']);
-      instrumentExpression(path.get('alternate'), state, ['expression', 'branch']);
-      instrumentExpression(path, state);
+    ImportDeclaration: {
+      exit(path, state) {
+        // Source: import a from 'a';
+        // Instrumented: ++count; import a from 'a';
+        instrumentStatement(path, state, [
+          'import',
+          'statement'
+        ]);
+      }
     },
-    SwitchStatement(path, state) {
-      // Source: switch (a) {}
-      // Instrumented: ++count; switch (++count, as) {}
-      instrumentExpression(path.get('discriminant'), state);
-      instrumentStatement(path, state);
+    ExportDeclaration: {
+      exit(path, state) {
+        // Source: export {};
+        // Instrumented: ++count; export {};
+        instrumentStatement(path, state, [
+          'export',
+          'statement'
+        ]);
+      }
     },
-    SwitchCase(path, state) {
-      // Source: case 'a':
-      // Instrumented: case (++count, 'a'): ++count;
-      instrumentBlock('consequent', path, state, ['branch']);
-      if (path.has('test')) {
+    ReturnStatement: {
+      exit(path, state) {
+        // Source: return x;
+        // Instrumented: return ++count, x;
+        instrumentExpression(path.get('argument'), state);
+      }
+    },
+    FunctionDeclaration: {
+      exit(path, state) {
+        // Source: function () {}
+        // Instrumented: ++count; function () { ++count; }
+        instrumentStatement(path, state);
+        instrumentBlock('body', path.get('body'), state, ['function']);
+      }
+    },
+    FunctionExpression: {
+      exit(path, state) {
+        // Source: a = function () {}
+        // Instrumented: a = function () { ++count; }
+        instrumentBlock('body', path.get('body'), state, ['function']);
+      }
+    },
+    ObjectProperty: {
+      exit(path, state) {
+        // Source: {a: 'b'}
+        // Instrumented: {a: (++count, 'b')}
+        instrumentExpression(path.get('value'), state);
+        if (path.node.computed) {
+          // Source: {['a']: 'b'}
+          // Instrumented: _defineProperty(o, (++count, 'a'), (++count, 'b'));
+          instrumentExpression(path.get('key'), state);
+        }
+      }
+    },
+    ObjectMethod: {
+      exit(path, state) {
+        if (path.node.computed) {
+          // Source: {['a'](){}}
+          // Instrumented: {[(++count, 'a')]: (++count, function a() { ++count; }})
+          instrumentExpression(path.get('key'), state);
+          instrumentBlock('body', path.get('body'), state, ['function']);
+        } else {
+          // Source: {a(){}}
+          // Instrumented: {a: (++count, function a() { ++count; }})
+          const {key, params, body, loc} = path.node;
+          const fnExpr = t.functionExpression(key, params, body);
+          const objProp = t.objectProperty(key, fnExpr);
+          fnExpr.loc = objProp.loc = loc;
+          path.replaceWith(objProp);
+        }
+      }
+    },
+    ArrowFunctionExpression: {
+      exit(path, state) {
+        const body = path.get('body');
+        if (body.isBlockStatement()) {
+          // Source: x => {}
+          // Instrumented: x => { ++count; }
+          instrumentBlock('body', body, state, ['function']);
+        } else {
+          // Source: x => x
+          // Instrumented: x => ++count, x
+          instrumentExpression(body, state, [
+            'function',
+            'expression'
+          ]);
+        }
+      }
+    },
+    IfStatement: {
+      exit(path, state) {
+        // Source: if (true) {} else {}
+        // Instrumented: ++count; if ((++count, true)) { ++count; } else { ++count; }
         instrumentExpression(path.get('test'), state);
+        instrumentBlock('body', path.get('consequent'), state, ['branch']);
+        if (path.has('alternate') && path.get('alternate').isBlockStatement()) {
+          instrumentBlock('body', path.get('alternate'), state, ['branch']);
+        }
+        // TODO: find a way to instrument the statement itself
+        // instrumentStatement(path, state);
+      }
+    },
+    ConditionalExpression: {
+      exit(path, state) {
+        // Source: true ? 1 : 2
+        // Instrumented: ++count, (++count, true) ? (++count, 1) : (++count, 2)
+        instrumentExpression(path.get('test'), state);
+        instrumentExpression(path.get('consequent'), state, ['expression', 'branch']);
+        instrumentExpression(path.get('alternate'), state, ['expression', 'branch']);
+        instrumentExpression(path, state);
+      }
+    },
+    SwitchStatement: {
+      exit(path, state) {
+        // Source: switch (a) {}
+        // Instrumented: ++count; switch (++count, as) {}
+        instrumentExpression(path.get('discriminant'), state);
+        instrumentStatement(path, state);
+      }
+    },
+    SwitchCase: {
+      exit(path, state) {
+        // Source: case 'a':
+        // Instrumented: case (++count, 'a'): ++count;
+        instrumentBlock('consequent', path, state, ['branch']);
+        if (path.has('test')) {
+          instrumentExpression(path.get('test'), state);
+        }
+      }
+    },
+    ForStatement: {
+      exit(path, state) {
+        // Source: for (let a = 1; a < 2; a++) {}
+        // Instrumented: ++count; for (let a = 1; a < 2; a++) { ++count; }
+        instrumentBlock('body', path.get('body'), state, ['branch']);
+        instrumentStatement(path, state);
+      }
+    },
+    ForInStatement: {
+      // This is a special case, where we cannot instrument the left side:
+      // See also ForOfStatement
+      enter(path, state) {
+        // Source: for (let a in {x: 42}) {}
+        // Instrumented: ++count; for (let a in (++count, {x: 42})) { ++count; }
+        const left = path.get('left');
+        if (left.isVariableDeclaration()) {
+          left.get('declarations').map(markAsIgnored);
+        } else {
+          markAsIgnored(left);
+        }
+        instrumentExpression(path.get('right'), state);
+        instrumentBlock('body', path.get('body'), state, ['branch']);
+        instrumentStatement(path, state);
+      }
+    },
+    ForOfStatement: {
+      // This is a special case, where we cannot instrument the left side:
+      // See also ForInStatement
+      enter(path, state) {
+        // Source: for (let a of []) {}
+        // Instrumented: ++count; for (let a of (++count, [])) { ++count; }
+        const left = path.get('left');
+        if (left.isVariableDeclaration()) {
+          left.get('declarations').map(markAsIgnored);
+        } else {
+          markAsIgnored(left);
+        }
+        instrumentExpression(path.get('right'), state);
+        instrumentBlock('body', path.get('body'), state, ['branch']);
+        instrumentStatement(path, state);
+      }
+    },
+    WhileStatement: {
+      exit(path, state) {
+        // Source: while (cond) {}
+        // instrumented: ++count; while (++count, cond) {}
+        instrumentExpression(path.get('test'), state);
+        instrumentBlock('body', path.get('body'), state, ['branch']);
+        instrumentStatement(path, state);
+      }
+    },
+    DoWhileStatement: {
+      exit(path, state) {
+        // Source: do {} while (cond);
+        // instrumented: ++count; do {} while (++count, cond);
+        instrumentExpression(path.get('test'), state);
+        instrumentBlock('body', path.get('body'), state, ['branch']);
+        instrumentStatement(path, state);
       }
     }
   };
 
   Object.keys(visitor).forEach(key => {
-    visitor[key] = {
-      exit: safeguardVisitor(visitor[key])
-    };
+    if (typeof visitor[key] === 'function') {
+      visitor[key] = safeguardVisitor(visitor[key]);
+    } else {
+      Object.keys(visitor[key]).forEach(fnKey => {
+        visitor[key][fnKey] = safeguardVisitor(visitor[key][fnKey]);
+      });
+    }
   });
 
   return {

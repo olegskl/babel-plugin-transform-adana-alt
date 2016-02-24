@@ -14,9 +14,9 @@ test('coverage should count if-statement test expressions', t => {
       .filter(el => el.count === 1)
       .length;
 
-    // There are two tests (final else branch has no test)
+    // There are two tests (final else branch has no test):
     t.equal(testExpressions.length, 2);
-    // Only one of two test has actually run (the truthy one)
+    // Only one of two test has actually run (the truthy one):
     t.equal(executedTestExpressions, 1);
   });
 });
@@ -29,9 +29,9 @@ test('coverage should count if-statement branches', t => {
       .filter(el => el.count === 1)
       .length;
 
-    // There are three branches
+    // There are three branches:
     t.equal(testBranches.length, 3);
-    // Only one of the three branches has actually run (the truthy one)
+    // Only one of the three branches has actually run (the truthy one):
     t.equal(executedTestBranches, 1);
   });
 });
