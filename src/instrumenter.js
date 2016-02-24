@@ -91,6 +91,32 @@ export default function instrumenter({types: t}) {
         instrumentExpression(path.get('right'), state);
       }
     },
+    TryStatement: {
+      // Source: try {} finally {}
+      // Instrumented: try { ++count; } finally { ++count; }
+      exit(path, state) {
+        instrumentBlock('body', path.get('block'), state, ['branch']);
+        if (path.has('finalizer')) {
+          instrumentBlock('body', path.get('finalizer'), state, ['branch']);
+        }
+        instrumentStatement(path, state);
+      }
+    },
+    CatchClause: {
+      // Source: catch (err) {}
+      // Instrumented: catch (err) { ++count; }
+      exit(path, state) {
+        instrumentBlock('body', path.get('body'), state, ['branch']);
+      }
+    },
+    ThrowStatement: {
+      // Source: throw 'err';
+      // Instrumented: ++count; throw ++count, 'err';
+      exit(path, state) {
+        instrumentExpression(path.get('argument'), state);
+        instrumentStatement(path, state);
+      }
+    },
     BreakStatement: {
       exit: instrumentStatement
     },
