@@ -75,6 +75,13 @@ export default function instrumenter({types: t}) {
       // Instrumented: ++count; ++count, ++a;
       exit: instrumentExpression
     },
+    AssignmentExpression: {
+      // Source: a += 1
+      // Instrumented: a += (++count, 1)
+      exit(path, state) {
+        instrumentExpression(path.get('right'), state);
+      }
+    },
     BinaryExpression: {
       // Source: true === true
       // Instrumented: (++count, true) === (++count, true)

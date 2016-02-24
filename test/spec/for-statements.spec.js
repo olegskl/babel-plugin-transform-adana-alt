@@ -32,12 +32,12 @@ test('coverage should count for-statement test expressions', t => {
       .filter(el => el.count === 2)
       .length;
 
-    // There are at least 3 expressions:
-    t.equal(expressionLocations.length, 3);
-    // Two of them should have run twice:
+    // There are at 4 expressions:
+    t.equal(expressionLocations.length, 4);
+    // Two of them have run twice:
     t.equal(executedTwiceExpressionLocations, 2);
-    // One of them should have run once:
-    t.equal(executedOnceExpressionLocations, 1);
+    // Two of them have run once:
+    t.equal(executedOnceExpressionLocations, 2);
   });
 });
 
