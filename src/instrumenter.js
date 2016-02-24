@@ -192,10 +192,6 @@ export default function instrumenter({types: t}) {
         ]);
       }
     },
-    // ConditionalExpression(path) {
-    //   instrument(path.get('consequent'));
-    //   instrument(path.get('alternate'));
-    // },
     // SwitchCase(path) {
     //   instrument(path);
     //   instrument(path.get('test'));
@@ -222,6 +218,14 @@ export default function instrumenter({types: t}) {
       if (path.has('alternate') && path.get('alternate').isBlockStatement()) {
         instrumentBlock(path.get('alternate'), state, ['branch']);
       }
+    },
+    ConditionalExpression(path, state) {
+      // Source: true ? 1 : 2
+      // Instrumented: ++count, (++count, true) ? (++count, 1) : (++count, 2)
+      instrumentExpression(path.get('test'), state);
+      instrumentExpression(path.get('consequent'), state, ['expression', 'branch']);
+      instrumentExpression(path.get('alternate'), state, ['expression', 'branch']);
+      instrumentExpression(path, state);
     }
   };
 
