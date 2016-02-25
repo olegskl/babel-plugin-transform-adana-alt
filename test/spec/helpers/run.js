@@ -1,5 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 import path from 'path';
+import assert from 'assert';
 import {runInNewContext} from 'vm';
 import transform from './transform';
 import {defaultNamespace as namespace} from '../../../src/uid';
@@ -18,5 +19,11 @@ export default function runFixture(fixtureName) {
       };
       runInNewContext(code, sandbox);
       return sandbox.global[namespace][fixturePath];
+    })
+    .then(function assertValidLocation(coverage) {
+      coverage.locations.forEach(({loc}) => {
+        assert.notStrictEqual(loc, null);
+      });
+      return coverage;
     });
 }

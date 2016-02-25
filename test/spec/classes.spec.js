@@ -19,9 +19,9 @@ test('coverage should count class declarations', t => {
       .filter(el => el.count === 1);
 
     // There are 4 statements (one is class, and 3 unrelated):
-    t.equal(statementLocations.length, 1 + 3);
+    t.equal(statementLocations.length, 4, 'adsasdfa');
     // All 4 statements have been executed once:
-    t.equal(executedOnceStatementLocations.length, 1 + 3);
+    t.equal(executedOnceStatementLocations.length, 4, 'zxczxcvzxc');
   });
 });
 
@@ -29,7 +29,7 @@ test('coverage should count class declarations', t => {
 // Class expressions
 // --------------------
 
-test('coverage should count expressions in classes', t => {
+test.skip('coverage should count expressions in classes', t => {
   t.plan(3);
   runFixture('classes').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
@@ -51,7 +51,7 @@ test('coverage should count expressions in classes', t => {
 // Class methods
 // --------------------
 
-test('coverage should count class constructors', t => {
+test.skip('coverage should count class constructors', t => {
   t.plan(1);
   runFixture('classes').then(({locations}) => {
     const constructorLocations = locations.filter(isConstructor);

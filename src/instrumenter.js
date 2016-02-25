@@ -3,6 +3,7 @@ import hash from './hash';
 import uid from './uid';
 import {getCoverageMeta, setCoverageMeta} from './meta';
 import {markAsIgnored, isMarkedAsIgnored} from './mark';
+import reserved from './reserved';
 
 function shouldSkipFile({opts, file} = {}) {
   if (!file || !opts) { return false; }
@@ -70,10 +71,15 @@ export default function instrumenter({types: t}) {
       // Instrumented: ++count; 42;
       exit: instrumentStatement
     },
-    CallExpression: {
+    CallExpression: { // FIXME
       // Source: foo()
       // Instrumented: ++count, foo()
-      exit: instrumentExpression
+      exit(path, state) {
+        path.get('arguments').forEach(a => {
+          if (!a.isExpression()) { return; }
+          instrumentExpression(a, state);
+        });
+      }
     },
     UpdateExpression: {
       // Source: ++a;
@@ -84,6 +90,7 @@ export default function instrumenter({types: t}) {
       // Source: a += 1
       // Instrumented: a += (++count, 1)
       exit(path, state) {
+        if (isMarkedAsIgnored(path.get('right'))) { return; }
         instrumentExpression(path.get('right'), state);
       }
     },
@@ -99,8 +106,8 @@ export default function instrumenter({types: t}) {
       // Source: false || true
       // Instrumented: (++count, false) || (++count, true)
       exit(path, state) {
-        instrumentExpression(path.get('left'), state);
-        instrumentExpression(path.get('right'), state);
+        instrumentExpression(path.get('left'), state, ['branch', 'expression']);
+        instrumentExpression(path.get('right'), state, ['branch', 'expression']);
       }
     },
     TryStatement: {
@@ -146,7 +153,7 @@ export default function instrumenter({types: t}) {
       }
     },
     VariableDeclarator: {
-      exit(path, state) {
+      enter(path, state) {
         // Source: let a = 42, b = 43;
         // Instrumented: let a = (++count, 42), b = (++count, 43);
         instrumentExpression(path.get('init'), state);
@@ -166,7 +173,11 @@ export default function instrumenter({types: t}) {
       // Source: export {};
       // Instrumented: ++count; export {};
       enter(path, state) {
-        markAsIgnored(path.get('declaration'));
+        const decl = path.get('declaration');
+        markAsIgnored(decl);
+        if (decl.isFunctionDeclaration()) {
+          instrumentBlock('body', decl.get('body'), state, ['function']);
+        }
         instrumentStatement(path, state, [
           'export',
           'statement'
@@ -176,8 +187,11 @@ export default function instrumenter({types: t}) {
     ReturnStatement: {
       exit(path, state) {
         // Source: return x;
-        // Instrumented: return ++count, x;
-        instrumentExpression(path.get('argument'), state);
+        // Instrumented: ++count; return ++count, x;
+        if (!isMarkedAsIgnored(path.get('argument'))) {
+          instrumentExpression(path.get('argument'), state);
+        }
+        instrumentStatement(path, state);
       }
     },
     ClassDeclaration: {
@@ -197,7 +211,7 @@ export default function instrumenter({types: t}) {
       // Instrumented: foo() { ++count; }
       exit(path, state) {
         const tags = path.node.kind === 'constructor' ?
-          ['constructor', 'function'] :
+          ['function'] : // TODO: 'constructor' is not allowed, what else?
           ['function'];
         instrumentBlock('body', path.get('body'), state, tags);
         if (path.node.computed) {
@@ -235,21 +249,31 @@ export default function instrumenter({types: t}) {
       }
     },
     ObjectProperty: {
-      exit(path, state) {
+      enter(path, state) {
         // Source: {a: 'b'}
         // Instrumented: {a: (++count, 'b')}
         // Don't instrument destructuring:
         if (path.parentPath.isPattern()) { return; }
-        instrumentExpression(path.get('value'), state);
+        // instrumentExpression(path.get('value'), state);
         if (path.node.computed) {
           // Source: {['a']: 'b'}
           // Instrumented: _defineProperty(o, (++count, 'a'), (++count, 'b'));
           instrumentExpression(path.get('key'), state);
+        } else {
+          const oldKey = path.get('key');
+          const newKeyName = oldKey.isLiteral() ?
+            oldKey.node.value.toString() :
+            oldKey.node.name;
+          const newKey = t.stringLiteral(newKeyName);
+          newKey.loc = oldKey.node.loc;
+          oldKey.replaceWith(newKey);
+          path.node.computed = true;
+          instrumentExpression(oldKey, state);
         }
       }
     },
     ObjectMethod: {
-      exit(path, state) {
+      enter(path, state) {
         if (path.node.computed) {
           // Source: {['a'](){}}
           // Instrumented: {[(++count, 'a')]: (++count, function a() { ++count; }})
@@ -259,7 +283,9 @@ export default function instrumenter({types: t}) {
           // Source: {a(){}}
           // Instrumented: {a: (++count, function a() { ++count; }})
           const {key, params, body, loc} = path.node;
-          const fnExpr = t.functionExpression(key, params, body);
+          // const fnKey = key.name in reserved ? null : key;
+          // const fnExpr = t.functionExpression(fnKey, params, body); // FIXME
+          const fnExpr = t.functionExpression(null, params, body);
           const objProp = t.objectProperty(key, fnExpr);
           fnExpr.loc = objProp.loc = loc;
           path.replaceWith(objProp);
@@ -267,7 +293,7 @@ export default function instrumenter({types: t}) {
       }
     },
     ArrowFunctionExpression: {
-      exit(path, state) {
+      enter(path, state) {
         const body = path.get('body');
         if (body.isBlockStatement()) {
           // Source: x => {}

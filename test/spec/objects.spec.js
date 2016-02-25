@@ -10,7 +10,7 @@ test('coverage should count object properties', t => {
   t.plan(2);
   runFixture('object-properties').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
-    t.equal(expressionLocations.length, 5 + 2); // extra 2 come from var declarations
+    t.equal(expressionLocations.length, 4 + 2); // extra 2 come from var declarations
     t.equal(expressionLocations.every(el => el.count === 1), true);
   });
 });

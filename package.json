@@ -1,15 +1,15 @@
 {
-  "name": "babel-plugon-transform-ankara",
+  "name": "babel-plugin-transform-ankara",
   "version": "0.0.1",
   "description": "Like Istanbul, but better.",
-  "main": "dist/index.js",
+  "main": "dist/instrumenter.js",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "prepublish": "babel src --out-dir dist",
+    "prepublish": "babel --source-maps --out-dir dist src/",
     "lint": "eslint {src,test}/**/*.js",
-    "test": "babel-tape-runner test/spec/*.spec.js | tap-prettify -"
+    "test": "babel-tape-runner test/spec/*.spec.js"
   },
   "keywords": [
     "coverage"
@@ -24,7 +24,6 @@
     "babel-tape-runner": "^2.0.0",
     "eslint": "^2.2.0",
     "eslint-config-meetic": "^2.0.0",
-    "tap-prettify": "^0.0.2",
     "tape": "^4.4.0"
   },
   "dependencies": {}
