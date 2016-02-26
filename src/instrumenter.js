@@ -3,7 +3,7 @@ import hash from './hash';
 import uid from './uid';
 import {getCoverageMeta, setCoverageMeta} from './meta';
 import {markAsIgnored, isMarkedAsIgnored} from './mark';
-import reserved from './reserved';
+// import reserved from './reserved';
 
 function shouldSkipFile({opts, file} = {}) {
   if (!file || !opts) { return false; }
@@ -66,6 +66,15 @@ export default function instrumenter({types: t}) {
   }
 
   const visitor = {
+    Directive(path, state) {
+      // Source: 'ngInject';
+      // Instrumented: 'ngInject'; ++count;
+      const loc = path.node.loc;
+      const marker = createMarker(state, {loc, tags: ['statement', 'directive']});
+      path.parentPath.unshiftContainer('body', markAsIgnored(
+        t.expressionStatement(marker)
+      ));
+    },
     ExpressionStatement: {
       // Source: 42;
       // Instrumented: ++count; 42;
@@ -76,9 +85,30 @@ export default function instrumenter({types: t}) {
       // Instrumented: ++count, foo()
       exit(path, state) {
         path.get('arguments').forEach(a => {
-          if (!a.isExpression()) { return; }
-          instrumentExpression(a, state);
+          if (a.isExpression()) {
+            instrumentExpression(a, state);
+          }
         });
+        if (!isMarkedAsIgnored(path)) {
+          instrumentExpression(path, state);
+        }
+      }
+    },
+    MemberExpression: {
+      // Source: a().then();
+      // Instrumented: a()[(++count, 'then')]();
+      exit(path, state) {
+        if (path.node.computed) {
+          instrumentExpression(path.get('property'), state);
+        } else {
+          const oldProp = path.get('property');
+          const newPropName = oldProp.node.name;
+          const newProp = t.stringLiteral(newPropName);
+          newProp.loc = oldProp.node.loc;
+          path.node.computed = true;
+          oldProp.replaceWith(newProp);
+          instrumentExpression(path.get('property'), state);
+        }
       }
     },
     UpdateExpression: {
@@ -153,9 +183,10 @@ export default function instrumenter({types: t}) {
       }
     },
     VariableDeclarator: {
-      enter(path, state) {
+      exit(path, state) {
         // Source: let a = 42, b = 43;
         // Instrumented: let a = (++count, 42), b = (++count, 43);
+        if (isMarkedAsIgnored(path.get('init'))) { return; }
         instrumentExpression(path.get('init'), state);
       }
     },
@@ -236,6 +267,23 @@ export default function instrumenter({types: t}) {
         instrumentBlock('body', path.get('body'), state, ['function']);
       }
     },
+    ArrowFunctionExpression: {
+      enter(path, state) {
+        const body = path.get('body');
+        if (body.isBlockStatement()) {
+          // Source: x => {}
+          // Instrumented: x => { ++count; }
+          instrumentBlock('body', body, state, ['function']);
+        } else {
+          // Source: x => x
+          // Instrumented: x => ++count, x
+          instrumentExpression(body, state, [
+            'function',
+            'expression'
+          ]);
+        }
+      }
+    },
     ArrayExpression: {
       exit(path, state) {
         // Source: [42]
@@ -289,23 +337,6 @@ export default function instrumenter({types: t}) {
           const objProp = t.objectProperty(key, fnExpr);
           fnExpr.loc = objProp.loc = loc;
           path.replaceWith(objProp);
-        }
-      }
-    },
-    ArrowFunctionExpression: {
-      enter(path, state) {
-        const body = path.get('body');
-        if (body.isBlockStatement()) {
-          // Source: x => {}
-          // Instrumented: x => { ++count; }
-          instrumentBlock('body', body, state, ['function']);
-        } else {
-          // Source: x => x
-          // Instrumented: x => ++count, x
-          instrumentExpression(body, state, [
-            'function',
-            'expression'
-          ]);
         }
       }
     },
