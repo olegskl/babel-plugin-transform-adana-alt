@@ -19,9 +19,9 @@ test('coverage should count class declarations', t => {
       .filter(el => el.count === 1);
 
     // There are 4 statements (one is class, and 3 unrelated):
-    t.equal(statementLocations.length, 4, 'adsasdfa');
+    t.equal(statementLocations.length, 1 + 3);
     // All 4 statements have been executed once:
-    t.equal(executedOnceStatementLocations.length, 4, 'zxczxcvzxc');
+    t.equal(executedOnceStatementLocations.length, 1 + 3);
   });
 });
 
@@ -29,7 +29,7 @@ test('coverage should count class declarations', t => {
 // Class expressions
 // --------------------
 
-test.skip('coverage should count expressions in classes', t => {
+test('coverage should count expressions in classes', t => {
   t.plan(3);
   runFixture('classes').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
@@ -38,11 +38,11 @@ test.skip('coverage should count expressions in classes', t => {
     const executedTwiceExpressionLocations = expressionLocations
       .filter(location => location.count === 2);
 
-    // There is a total of 4 expressions (2 unrelated):
-    t.equal(expressionLocations.length, 2 + 2);
-    // Three of them are executed once (incl. static property):
-    t.equal(executedOnceExpressionLocations.length, 1 + 2);
-    // One of them are executed twice (private property):
+    // There is a total of 7 expressions (5 unrelated):
+    t.equal(expressionLocations.length, 2 + 5);
+    // Six of them are executed once (incl. static property):
+    t.equal(executedOnceExpressionLocations.length, 6);
+    // One of them is executed twice (private property):
     t.equal(executedTwiceExpressionLocations.length, 1);
   });
 });
@@ -51,7 +51,7 @@ test.skip('coverage should count expressions in classes', t => {
 // Class methods
 // --------------------
 
-test.skip('coverage should count class constructors', t => {
+test('coverage should count class constructors', t => {
   t.plan(1);
   runFixture('classes').then(({locations}) => {
     const constructorLocations = locations.filter(isConstructor);

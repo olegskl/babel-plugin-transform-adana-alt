@@ -6,7 +6,7 @@ import {isExpression} from './helpers/tag-assert';
 // Call expressions
 // --------------------
 
-test.skip('coverage should count call expression', t => {
+test('coverage should count call expression', t => {
   t.plan(2);
   runFixture('call-expressions').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
