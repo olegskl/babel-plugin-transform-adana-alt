@@ -1,3 +1,6 @@
 /* eslint-disable no-unused-expressions */
-// one expression-statement
-(true || false) && true; // four expressions, one (false) has not been run
+// one statement, one expression
+( // one expression, one branch
+  true || // one expression, one branch
+  false // one expression, one branch (this has not been executed)
+) && true; // one expression, one branch

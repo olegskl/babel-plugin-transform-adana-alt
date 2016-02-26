@@ -13,9 +13,9 @@ test('coverage should count call expression', t => {
     const executedOnceExpressionLocations = expressionLocations
       .filter(el => el.count === 1);
 
-    // There is one expression:
-    t.equal(expressionLocations.length, 1);
-    // The expression has been executed once:
-    t.equal(executedOnceExpressionLocations.length, 1);
+    // There are two expressions:
+    t.equal(expressionLocations.length, 2);
+    // Both expressions have been executed once:
+    t.equal(executedOnceExpressionLocations.length, 2);
   });
 });

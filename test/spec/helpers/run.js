@@ -19,11 +19,11 @@ export default function runFixture(fixtureName) {
       };
       runInNewContext(code, sandbox);
       return sandbox.global[namespace][fixturePath];
-    })
-    .then(function assertValidLocation(coverage) {
-      coverage.locations.forEach(({loc}) => {
-        assert.notStrictEqual(loc, null);
-      });
-      return coverage;
     });
+    // .then(function assertValidLocation(coverage) {
+    //   coverage.locations.forEach(({loc}) => {
+    //     assert.notStrictEqual(loc, null);
+    //   });
+    //   return coverage;
+    // });
 }

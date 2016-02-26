@@ -11,12 +11,11 @@ test('coverage should count assignment expressions', t => {
   runFixture('assignment-expressions').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
     const executedOnceExpressionLocations = expressionLocations
-      .filter(el => el.count === 1)
-      .length;
+      .filter(el => el.count === 1);
 
-    // There are two expressions:
-    t.equal(expressionLocations.length, 2);
-    // Both expressions have been executed:
-    t.equal(executedOnceExpressionLocations, 2);
+    // There are 3 expressions:
+    t.equal(expressionLocations.length, 3);
+    // All expressions have been executed once:
+    t.equal(executedOnceExpressionLocations.length, 3);
   });
 });

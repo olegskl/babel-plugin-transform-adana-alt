@@ -10,14 +10,13 @@ test('coverage should count if-statement test expressions', t => {
   t.plan(2);
   runFixture('if-statements').then(({locations}) => {
     const testExpressions = locations.filter(isExpression);
-    const executedTestExpressions = testExpressions
-      .filter(el => el.count === 1)
-      .length;
+    const executedOnceTestExpressions = testExpressions
+      .filter(el => el.count === 1);
 
     // There are two tests (final else branch has no test):
     t.equal(testExpressions.length, 2);
     // Only one of two test has actually run (the truthy one):
-    t.equal(executedTestExpressions, 1);
+    t.equal(executedOnceTestExpressions.length, 1);
   });
 });
 

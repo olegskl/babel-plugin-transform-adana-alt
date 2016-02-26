@@ -10,7 +10,12 @@ test('coverage should count binary expressions', t => {
   t.plan(2);
   runFixture('binary-expressions').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
-    t.equal(expressionLocations.length, 2);
-    t.equal(expressionLocations.every(el => el.count === 1), true);
+    const executedOnceExpressionLocations = expressionLocations
+      .filter(el => el.count === 1);
+
+    // There are 3 expressions:
+    t.equal(expressionLocations.length, 3);
+    // All expressions have been executed once:
+    t.equal(executedOnceExpressionLocations.length, 3);
   });
 });

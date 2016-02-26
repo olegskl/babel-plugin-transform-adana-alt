@@ -11,11 +11,9 @@ test('coverage should count continue statements', t => {
   runFixture('continue-statements').then(({locations}) => {
     const statementLocations = locations.filter(isStatement);
     const executedOnceStatementLocations = statementLocations
-      .filter(el => el.count === 1)
-      .length;
+      .filter(el => el.count === 1);
     const executedNeverStatementLocations = statementLocations
-      .filter(el => el.count === 0)
-      .length;
+      .filter(el => el.count === 0);
 
     // There are 3 statements
     //  - one do-while statement
@@ -23,8 +21,8 @@ test('coverage should count continue statements', t => {
     //  - one expression-statement statement
     t.equal(statementLocations.length, 1 + 2);
     // Two statements have been run once (do-while and continue):
-    t.equal(executedOnceStatementLocations, 2);
+    t.equal(executedOnceStatementLocations.length, 2);
     // One statement is unreachable (expression statement):
-    t.equal(executedNeverStatementLocations, 1);
+    t.equal(executedNeverStatementLocations.length, 1);
   });
 });

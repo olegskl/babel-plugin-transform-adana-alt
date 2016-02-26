@@ -3,4 +3,4 @@
 // one statement
 let a = 0; // one expression
 // one statement
-a += 1; // one expression
+a += 1; // two expressions

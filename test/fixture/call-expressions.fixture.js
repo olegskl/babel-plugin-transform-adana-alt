@@ -3,5 +3,5 @@ function foo() {
   // one function
 }
 
-// one expression statement
-foo(); // one function call expression
+// one statement
+foo(); // two expressions (expression statement and call expression)

@@ -11,12 +11,11 @@ test('coverage should count break statements', t => {
   runFixture('break-statements').then(({locations}) => {
     const statementLocations = locations.filter(isStatement);
     const executedOnceStatementLocations = statementLocations
-      .filter(el => el.count === 1)
-      .length;
+      .filter(el => el.count === 1);
 
     // There are two statements (one for while-statement, one for break statement):
     t.equal(statementLocations.length, 2);
     // Both statements have been run once:
-    t.equal(executedOnceStatementLocations, 2);
+    t.equal(executedOnceStatementLocations.length, 2);
   });
 });

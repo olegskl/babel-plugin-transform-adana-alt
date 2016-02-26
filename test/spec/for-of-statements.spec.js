@@ -34,7 +34,7 @@ test('coverage should count for-of statement test expressions', t => {
   });
 });
 
-test('coverage should count for-of statement branches', t => {
+test.skip('coverage should count for-of statement branches', t => {
   t.plan(2);
   runFixture('for-of-statements').then(({locations}) => {
     const branchLocations = locations.filter(isBranch);

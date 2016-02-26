@@ -13,9 +13,9 @@ class A {
 }
 
 // one statement
-new A(); // one expression (decl)
+new A(); // two expressions
 
 // one statement
-const a = new A(); // two expressions (decl and call)
+const a = new A(); // two expressions
 // one statement
-a.foo(); // two expressions (member and call)
+a.foo(); // two expressions

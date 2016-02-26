@@ -11,13 +11,12 @@ test('coverage should count try and throw statements', t => {
   runFixture('try-catch').then(({locations}) => {
     const statementLocations = locations.filter(isStatement);
     const executedOnceStatementLocations = statementLocations
-      .filter(el => el.count === 1)
-      .length;
+      .filter(el => el.count === 1);
 
     // There are two statements (one for try-statement, one for throw statement):
     t.equal(statementLocations.length, 2);
     // Both statements have been run once:
-    t.equal(executedOnceStatementLocations, 2);
+    t.equal(executedOnceStatementLocations.length, 2);
   });
 });
 
@@ -30,12 +29,11 @@ test('coverage should count try-catch branches', t => {
   runFixture('try-catch').then(({locations}) => {
     const branchLocations = locations.filter(isBranch);
     const executedOnceBranchLocations = branchLocations
-      .filter(el => el.count === 1)
-      .length;
+      .filter(el => el.count === 1);
 
     // There are three branches:
     t.equal(branchLocations.length, 3);
     // All three branches have been taken once:
-    t.equal(executedOnceBranchLocations, 3);
+    t.equal(executedOnceBranchLocations.length, 3);
   });
 });
