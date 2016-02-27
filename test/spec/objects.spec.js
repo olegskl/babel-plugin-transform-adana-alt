@@ -45,9 +45,9 @@ test('coverage should count expressions in object method declarations', t => {
     const executedOnceExpressionLocations = expressionLocations
       .filter(l => l.count === 1);
 
-    // There are 5 expressions total (3 unrelated to test):
-    t.equal(expressionLocations.length, 2 + 3);
+    // There are 6 expressions total (4 unrelated to test):
+    t.equal(expressionLocations.length, 2 + 4);
     // All expressions have been executed:
-    t.equal(executedOnceExpressionLocations.length, 5);
+    t.equal(executedOnceExpressionLocations.length, 6);
   });
 });

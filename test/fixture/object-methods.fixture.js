@@ -7,4 +7,4 @@ const obj = { // one expression not related to this test
 };
 
 // one statement
-obj.bar(); // two expressions
+obj.bar(); // three expressions

@@ -11,9 +11,9 @@ test('coverage should count conditional expressions', t => {
   runFixture('conditional-expressions').then(({locations}) => {
     const expressionLocations = locations.filter(isExpression);
     const executedNeverExpressionLocations = expressionLocations
-      .filter(el => el.count === 0);
+      .filter(l => l.count === 0);
     const executedOnceExpressionLocations = expressionLocations
-      .filter(el => el.count === 1);
+      .filter(l => l.count === 1);
 
     t.equal(expressionLocations.length, 4);
     t.equal(executedOnceExpressionLocations.length, 3);
@@ -26,9 +26,9 @@ test('coverage should count conditional expressions as branches', t => {
   runFixture('conditional-expressions').then(({locations}) => {
     const branchLocations = locations.filter(isBranch);
     const executedNeverBranchLocations = branchLocations
-      .filter(el => el.count === 0);
+      .filter(l => l.count === 0);
     const executedOnceBranchLocations = branchLocations
-      .filter(el => el.count === 1);
+      .filter(l => l.count === 1);
 
     t.equal(branchLocations.length, 2);
     t.equal(executedOnceBranchLocations.length, 1);
@@ -41,7 +41,7 @@ test('coverage should instrument conditional expression statements', t => {
   runFixture('conditional-expressions').then(({locations}) => {
     const statementLocations = locations.filter(isStatement);
     const executedOnceExpressionLocations = statementLocations
-      .filter(el => el.count === 1);
+      .filter(l => l.count === 1);
 
     t.equal(statementLocations.length, 1);
     t.equal(executedOnceExpressionLocations.length, 1);

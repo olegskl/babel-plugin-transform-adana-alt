@@ -2,7 +2,7 @@ import {util} from 'babel-core';
 import hash from './hash';
 import uid from './uid';
 import {getCoverageMeta, setCoverageMeta} from './meta';
-import {markAsIgnored, isMarkedAsIgnored} from './mark';
+import {markAsInstrumented, isInstrumented} from './marker';
 // import reserved from './reserved';
 
 function shouldSkipFile({opts, file} = {}) {
@@ -17,8 +17,8 @@ function shouldSkipFile({opts, file} = {}) {
 
 function safeguardVisitor(visitor) {
   return function visitorProxy(path, state) {
-    if (path.node && path.node.loc && !isMarkedAsIgnored(path.node)) {
-      markAsIgnored(path); // ensure path is visited only once
+    if (path.node && path.node.loc && !isInstrumented(path)) {
+      markAsInstrumented(path); // ensure path is visited only once
       visitor(path, state); // visitors don't return
     }
   };
@@ -34,7 +34,7 @@ export default function instrumenter({types: t}) {
     const {locations, variable} = getCoverageMeta(state);
     const id = locations.length;
     locations.push({id, loc, tags, count: 0});
-    return markAsIgnored(t.unaryExpression('++', t.memberExpression(
+    return markAsInstrumented(t.unaryExpression('++', t.memberExpression(
       t.memberExpression(variable, t.numericLiteral(id), true),
       t.identifier('count')
     )));
@@ -42,12 +42,11 @@ export default function instrumenter({types: t}) {
 
   // 42 ---> (++_counter[id].count, 42)
   function instrumentExpression(path, state, tags = ['expression']) {
-    if (path.isMemberExpression()) { return; }
     const isEmptyNode = !path.node;
     const loc = isEmptyNode ? path.parent.loc : path.node.loc;
     const marker = createMarker(state, {loc, tags});
     const node = isEmptyNode ? t.identifier('undefined') : path.node;
-    path.replaceWith(markAsIgnored(
+    path.replaceWith(markAsInstrumented(
       t.sequenceExpression([marker, node])
     ));
   }
@@ -57,17 +56,16 @@ export default function instrumenter({types: t}) {
     if (!isInstrumentableStatement(path)) { return; }
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags});
-    path.insertBefore(markAsIgnored(
+    path.insertBefore(markAsInstrumented(
       t.expressionStatement(marker)
     ));
   }
 
-  // {} ---> { ++_ankaracoverage[0].count; }
+  // {} ---> { ++count; }
   function instrumentBlock(container, path, state, tags = ['block']) {
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags});
-    // markAsIgnored(path.get('body'));
-    markAsIgnored(path).unshiftContainer(container, markAsIgnored(
+    markAsInstrumented(path).unshiftContainer(container, markAsInstrumented(
       t.expressionStatement(marker)
     ));
   }
@@ -79,25 +77,40 @@ export default function instrumenter({types: t}) {
     Directive(path, state) {
       const loc = path.node.loc;
       const marker = createMarker(state, {loc, tags: ['statement', 'directive']});
-      path.parentPath.unshiftContainer('body', markAsIgnored(
+      path.parentPath.unshiftContainer('body', markAsInstrumented(
         t.expressionStatement(marker)
       ));
     },
 
     // BlockStatement: instrumentBlock,
-    Expression: instrumentExpression,
     Statement: instrumentStatement,
+
+    Expression(path, state) {
+      // Don't instrument super:
+      if (path.isSuper()) { return; }
+      instrumentExpression(path, state);
+    },
 
     // Source: ++a;
     // Instrumented: ++count, ++a;
     UpdateExpression(path, state) {
-      markAsIgnored(path.get('argument'));
+      markAsInstrumented(path.get('argument'));
       instrumentExpression(path, state);
+    },
+
+    MemberExpression(path, state) {
+      if (path.node.computed) { return; }
+      const oldProp = path.get('property');
+      const newProp = t.stringLiteral(oldProp.node.name);
+      newProp.loc = oldProp.node.loc;
+      path.node.computed = true;
+      oldProp.replaceWith(markAsInstrumented(newProp));
+      instrumentExpression(path.get('property'), state);
     },
 
     ImportDeclaration(path, state) {
       // Source is not instrumentable:
-      markAsIgnored(path.get('source'));
+      markAsInstrumented(path.get('source'));
       instrumentStatement(path, state, ['import', 'statement']);
     },
 
@@ -129,15 +142,28 @@ export default function instrumenter({types: t}) {
       instrumentExpression(path, state);
     },
 
-    // Source: if (true) {} else {}
-    // Instrumented: ++count; if ((++count, true)) { ++count; } else { ++count; }
+    // Source: if (true) {}
+    // Instrumented: ++count; if (++count, true) { ++count; } else { ++count; }
     IfStatement(path, state) {
+      // There is always a "consequent" branch:
       instrumentBlock('body', path.get('consequent'), state, ['branch']);
-      if (path.has('alternate') && path.get('alternate').isBlockStatement()) {
+
+      // An "alternate" branch may exist:
+      const alternate = path.get('alternate');
+      if (alternate.isBlockStatement()) {
         instrumentBlock('body', path.get('alternate'), state, ['branch']);
+      } else if (!alternate.isIfStatement()) {
+        const body = t.blockStatement([]);
+        const locEnd = path.node.loc.end;
+        body.loc = {start: locEnd, end: locEnd};
+        alternate.replaceWith(body);
+        instrumentBlock('body', alternate, state, ['branch']);
       }
-      // TODO: find a way to instrument the statement itself
-      // instrumentStatement(path, state);
+
+      // We want to instrument entire if-statements as statements:
+      if (path.key !== 'alternate') {
+        instrumentStatement(path, state);
+      }
     },
 
     // Source: case 'a':
@@ -197,11 +223,15 @@ export default function instrumenter({types: t}) {
     // Source: {a: 'b'}
     // Instrumented: {a: (++count, 'b')}
     ObjectProperty(path, state) {
-      if (path.parentPath.isPattern() || path.node.computed) { return; }
+      if (path.parentPath.isPattern()) {
+        markAsInstrumented(path.get('value'));
+        return;
+      }
+      if (path.node.computed) { return; }
       const oldKey = path.get('key');
       const newKey = oldKey.isLiteral() ? oldKey : t.stringLiteral(oldKey.node.name);
       newKey.loc = oldKey.node.loc;
-      oldKey.replaceWith(markAsIgnored(newKey));
+      oldKey.replaceWith(markAsInstrumented(newKey));
       path.node.computed = true;
       instrumentExpression(path.get('key'), state);
     },
@@ -216,7 +246,7 @@ export default function instrumenter({types: t}) {
       const oldKey = path.get('key');
       const newKey = oldKey.isLiteral() ? oldKey : t.stringLiteral(oldKey.node.name);
       newKey.loc = oldKey.node.loc;
-      oldKey.replaceWith(markAsIgnored(newKey));
+      oldKey.replaceWith(markAsInstrumented(newKey));
       path.node.computed = true;
       instrumentExpression(path.get('key'), state);
     },
@@ -244,7 +274,7 @@ export default function instrumenter({types: t}) {
         setCoverageMeta(state, {
           hash: hash(state.file.code),
           locations: [],
-          variable: path.scope.generateUidIdentifier('ankaracoverage')
+          variable: path.scope.generateUidIdentifier('coverage')
         });
         path.traverse(visitor, state);
         path.unshiftContainer('body', uid(state));

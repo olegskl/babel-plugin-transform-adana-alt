@@ -38,10 +38,10 @@ test('coverage should count expressions in classes', t => {
     const executedTwiceExpressionLocations = expressionLocations
       .filter(location => location.count === 2);
 
-    // There is a total of 8 expressions (7 unrelated):
-    t.equal(expressionLocations.length, 2 + 6);
-    // Seven of them are executed once (incl. static property):
-    t.equal(executedOnceExpressionLocations.length, 7);
+    // There is a total of 9 expressions (7 unrelated):
+    t.equal(expressionLocations.length, 2 + 7);
+    // Eight of them are executed once (incl. static property):
+    t.equal(executedOnceExpressionLocations.length, 1 + 7);
     // One of them is executed twice (private property):
     t.equal(executedTwiceExpressionLocations.length, 1);
   });

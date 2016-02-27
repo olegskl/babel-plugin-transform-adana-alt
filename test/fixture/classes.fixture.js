@@ -18,4 +18,4 @@ new A(); // two expressions
 // one statement
 const a = new A(); // two expressions
 // one statement
-a.foo(); // two expressions
+a.foo(); // three expressions
