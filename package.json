@@ -1,5 +1,5 @@
 {
-  "name": "babel-plugin-transform-ankara",
+  "name": "babel-plugin-transform-adana-alt",
   "version": "0.0.1",
   "description": "Like Istanbul, but better.",
   "main": "dist/plugin.js",

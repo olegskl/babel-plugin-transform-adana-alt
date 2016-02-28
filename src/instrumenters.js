@@ -5,7 +5,7 @@ export function isInstrumentableStatement({parentPath}) {
   return parentPath.isBlockStatement() || parentPath.isProgram();
 }
 
-// 42 ---> (++_counter[id].count, 42)
+// 42 ---> (++count[id].count, 42)
 export function instrumentExpression(path, state, tags = ['expression']) {
   const isEmptyNode = !path.node;
   const loc = isEmptyNode ? path.parent.loc : path.node.loc;
@@ -16,7 +16,7 @@ export function instrumentExpression(path, state, tags = ['expression']) {
   ));
 }
 
-// break; ---> ++_ankaracoverage[0].count; break;
+// break; ---> ++count[0].count; break;
 export function instrumentStatement(path, state, tags = ['statement']) {
   if (!isInstrumentableStatement(path)) { return; }
   const loc = path.node.loc;

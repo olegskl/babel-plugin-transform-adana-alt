@@ -8,7 +8,7 @@ import {getCoverageMeta} from './meta';
 */
 export function markAsInstrumented(pathOrNode) {
   const node = pathOrNode.node || pathOrNode;
-  node[Symbol.for('ankaracoverage')] = true;
+  node[Symbol.for('adanacoverage')] = true;
   return pathOrNode;
 }
 
@@ -19,7 +19,7 @@ export function markAsInstrumented(pathOrNode) {
  */
 export function isInstrumented(pathOrNode) {
   const node = pathOrNode.node || pathOrNode;
-  return node[Symbol.for('ankaracoverage')] === true;
+  return node[Symbol.for('adanacoverage')] === true;
 }
 
 export function createMarker(state, {loc, tags}) {
