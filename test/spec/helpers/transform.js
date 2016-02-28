@@ -1,4 +1,4 @@
-import instrumenter from '../../../src/instrumenter';
+import babelPluginTransformAdana from '../../../src/plugin';
 import {transformFile} from 'babel-core';
 
 export default function transformFixture(fixturePath) {
@@ -6,8 +6,8 @@ export default function transformFixture(fixturePath) {
     transformFile(fixturePath, {
       presets: ['es2015'],
       plugins: [
-        'transform-class-properties',
-        instrumenter
+        babelPluginTransformAdana,
+        'transform-class-properties'
       ],
       sourceType: 'module',
       ast: false

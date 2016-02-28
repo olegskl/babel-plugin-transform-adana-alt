@@ -1,3 +1,6 @@
+import {types} from 'babel-core';
+import {getCoverageMeta} from './meta';
+
 /**
 * Marks a given path or node as instrumented.
 * @param  {Path|Node} pathOrNode Path or Node to mark.
@@ -17,4 +20,15 @@ export function markAsInstrumented(pathOrNode) {
 export function isInstrumented(pathOrNode) {
   const node = pathOrNode.node || pathOrNode;
   return node[Symbol.for('ankaracoverage')] === true;
+}
+
+export function createMarker(state, {loc, tags}) {
+  const {locations, variable} = getCoverageMeta(state);
+  const id = locations.length;
+  const marker = types.unaryExpression('++', types.memberExpression(
+    types.memberExpression(variable, types.numericLiteral(id), true),
+    types.identifier('count')
+  ));
+  locations.push({id, loc, tags, count: 0});
+  return markAsInstrumented(marker);
 }

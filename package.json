@@ -2,7 +2,7 @@
   "name": "babel-plugin-transform-ankara",
   "version": "0.0.1",
   "description": "Like Istanbul, but better.",
-  "main": "dist/instrumenter.js",
+  "main": "dist/plugin.js",
   "directories": {
     "test": "test"
   },
