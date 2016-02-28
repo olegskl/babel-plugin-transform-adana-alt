@@ -70,6 +70,27 @@ export default function instrumenter({types: t}) {
     ));
   }
 
+  function instrumentObjectProperty(path, state) {
+    if (path.node.computed) { return; }
+    const oldKey = path.get('key');
+    const newKey = oldKey.isLiteral() ? oldKey : t.stringLiteral(oldKey.node.name);
+    newKey.loc = oldKey.node.loc;
+    oldKey.replaceWith(markAsInstrumented(newKey));
+    path.node.computed = true;
+    instrumentExpression(path.get('key'), state);
+  }
+
+  function instrumentClassProperty(path, state, tags = ['statement', 'property']) {
+    const value = path.get('value');
+    const isEmptyNode = !value.node;
+    const {loc} = isEmptyNode ? path.parent : path.node;
+    const marker = createMarker(state, {loc, tags});
+    const node = isEmptyNode ? t.identifier('undefined') : value.node;
+    value.replaceWith(markAsInstrumented(
+      t.sequenceExpression([marker, node])
+    ));
+  }
+
   const visitor = {
 
     // Source: 'ngInject';
@@ -203,7 +224,11 @@ export default function instrumenter({types: t}) {
     },
 
     Function(path, state) {
-      instrumentBlock('body', path.get('body'), state, ['function']);
+      if (path.node.kind === 'constructor') {
+        instrumentBlock('body', path.get('body'), state, ['function', 'constructor']);
+      } else {
+        instrumentBlock('body', path.get('body'), state, ['function']);
+      }
       instrumentStatement(path, state);
     },
 
@@ -227,13 +252,7 @@ export default function instrumenter({types: t}) {
         markAsInstrumented(path.get('value'));
         return;
       }
-      if (path.node.computed) { return; }
-      const oldKey = path.get('key');
-      const newKey = oldKey.isLiteral() ? oldKey : t.stringLiteral(oldKey.node.name);
-      newKey.loc = oldKey.node.loc;
-      oldKey.replaceWith(markAsInstrumented(newKey));
-      path.node.computed = true;
-      instrumentExpression(path.get('key'), state);
+      instrumentObjectProperty(path, state);
     },
 
     // Source: {['a'](){}}
@@ -242,23 +261,34 @@ export default function instrumenter({types: t}) {
     // Instrumented: {a: (++count, function a() { ++count; }})
     ObjectMethod(path, state) {
       instrumentBlock('body', path.get('body'), state, ['function']);
-      if (path.node.computed) { return; }
-      const oldKey = path.get('key');
-      const newKey = oldKey.isLiteral() ? oldKey : t.stringLiteral(oldKey.node.name);
-      newKey.loc = oldKey.node.loc;
-      oldKey.replaceWith(markAsInstrumented(newKey));
-      path.node.computed = true;
-      instrumentExpression(path.get('key'), state);
+      instrumentObjectProperty(path, state);
     },
 
-    // Source: foo() {}
-    // Instrumented: foo() { ++count; }
-    ClassMethod(path, state) {
-      if (path.node.kind === 'constructor') {
-        instrumentBlock('body', path.get('body'), state, ['function', 'constructor']);
-      } else {
-        instrumentBlock('body', path.get('body'), state, ['function']);
+    ClassBody(path, state) {
+      const parent = path.parentPath;
+      const body = path.get('body');
+      const methods = body.filter(node => node.isMethod());
+      const props = body.filter(node => !node.isMethod());
+      const methodMarkers = methods.map(method => {
+        const tags = ['statement', 'method'];
+        const loc = method.node.loc;
+        return createMarker(state, {loc, tags});
+      });
+      if (parent.isStatement()) {
+        const instrumentableParent = path.findParent(isInstrumentableStatement);
+        methodMarkers.forEach(marker => {
+          instrumentableParent.insertBefore(markAsInstrumented(
+            t.expressionStatement(marker)
+          ));
+        });
+      } else if (parent.isExpression()) {
+        parent.replaceWith(markAsInstrumented(
+          t.sequenceExpression([...methodMarkers, parent.node])
+        ));
       }
+      props.forEach(prop => {
+        instrumentClassProperty(prop, state);
+      });
     }
 
   };

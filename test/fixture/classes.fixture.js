@@ -2,13 +2,15 @@
 
 // one statement
 class A {
-  static s = 0; // one expression (executed once)
-  p = 1; // one expression (executed twice, see below)
-  constructor() {
-    // one class, executed twice (see below)
+  static s = // one statement
+    0; // one expression
+  p = // one statement (executed twice)
+    1; // one expression (executed twice)
+  constructor() { // one statement
+    // one constructor function (executed twice)
   }
-  foo() {
-    // one function, executed once (see below)
+  foo() { // one statement
+    // one method function
   }
 }
 

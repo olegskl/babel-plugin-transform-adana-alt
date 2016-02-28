@@ -12,16 +12,20 @@ import {
 // --------------------
 
 test('coverage should count class declarations', t => {
-  t.plan(2);
+  t.plan(3);
   runFixture('classes').then(({locations}) => {
     const statementLocations = locations.filter(isStatement);
     const executedOnceStatementLocations = statementLocations
-      .filter(el => el.count === 1);
+      .filter(l => l.count === 1);
+    const executedTwiceStatementLocations = statementLocations
+      .filter(l => l.count === 2);
 
-    // There are 4 statements (one is class, and 3 unrelated):
-    t.equal(statementLocations.length, 1 + 3);
-    // All 4 statements have been executed once:
-    t.equal(executedOnceStatementLocations.length, 1 + 3);
+    // There are 8 statements (1 class, 2 properties, 2 methods, 3 unrelated):
+    t.equal(statementLocations.length, 8);
+    // 7 statements have been executed once:
+    t.equal(executedOnceStatementLocations.length, 7);
+    // All 8 statements have been executed once:
+    t.equal(executedTwiceStatementLocations.length, 1);
   });
 });
 
@@ -40,7 +44,7 @@ test('coverage should count expressions in classes', t => {
 
     // There is a total of 9 expressions (7 unrelated):
     t.equal(expressionLocations.length, 2 + 7);
-    // Eight of them are executed once (incl. static property):
+    // 7 are executed once (incl. static property):
     t.equal(executedOnceExpressionLocations.length, 1 + 7);
     // One of them is executed twice (private property):
     t.equal(executedTwiceExpressionLocations.length, 1);
@@ -65,9 +69,9 @@ test('coverage should count class methods and track their executions', t => {
   runFixture('classes').then(({locations}) => {
     const functionLocations = locations.filter(isFunction);
     const executedOnceFunctionLocations = functionLocations
-      .filter(location => location.count === 1);
+      .filter(l => l.count === 1);
     const executedTwiceFunctionLocations = functionLocations
-      .filter(location => location.count === 2);
+      .filter(l => l.count === 2);
 
     // There are only two methods:
     t.equal(functionLocations.length, 2);
