@@ -7,6 +7,7 @@ export function isInstrumentableStatement({parentPath}) {
 
 // 42 ---> (++count[id].count, 42)
 export function instrumentExpression(path, state, tags = ['expression']) {
+  tags.unshift('line'); // temporary solution
   const isEmptyNode = !path.node;
   const loc = isEmptyNode ? path.parent.loc : path.node.loc;
   const marker = createMarker(state, {loc, tags});
@@ -19,6 +20,7 @@ export function instrumentExpression(path, state, tags = ['expression']) {
 // break; ---> ++count[0].count; break;
 export function instrumentStatement(path, state, tags = ['statement']) {
   if (!isInstrumentableStatement(path)) { return; }
+  tags.unshift('line'); // temporary solution
   const loc = path.node.loc;
   const marker = createMarker(state, {loc, tags});
   path.insertBefore(markAsInstrumented(
