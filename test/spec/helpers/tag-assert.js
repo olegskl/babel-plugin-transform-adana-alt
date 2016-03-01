@@ -3,7 +3,7 @@ export function isFunction({tags}) {
 }
 
 export function isConstructor({tags}) {
-  return tags.some(tag => tag === 'constructor');
+  return tags.some(tag => tag === '_constructor');
 }
 
 export function isBranch({tags}) {
