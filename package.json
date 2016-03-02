@@ -26,5 +26,7 @@
     "eslint-config-meetic": "^2.0.0",
     "tape": "^4.4.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "babel-template": "^6.6.0"
+  }
 }
