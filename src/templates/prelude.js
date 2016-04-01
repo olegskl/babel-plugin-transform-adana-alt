@@ -8,5 +8,5 @@ const VARIABLE = (context => {
   };
   return fileCoverage.locations;
 })(
-  typeof global === 'undefined' ? this : global
+  typeof global === 'undefined' ? window : global
 );
