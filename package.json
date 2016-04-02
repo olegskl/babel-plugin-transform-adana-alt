@@ -1,6 +1,6 @@
 {
   "name": "babel-plugin-transform-adana-alt",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Like Istanbul, but better.",
   "main": "dist/plugin.js",
   "directories": {
