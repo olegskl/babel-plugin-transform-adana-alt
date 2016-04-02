@@ -22,13 +22,16 @@ export function isInstrumented(pathOrNode) {
   return node[Symbol.for('adanacoverage')] === true;
 }
 
+/**
+ * Create a non-instrumentable marker.
+ * @param  {Object} state Babel state object.
+ * @param  {Object} path  Babel path object.
+ * @return {Node}         Marker.
+ */
 export function createMarker(state, {loc, tags}) {
   const {locations, variable} = getCoverageMeta(state);
   const id = locations.length;
-  const marker = types.unaryExpression('++', types.memberExpression(
-    types.memberExpression(variable, types.numericLiteral(id), true),
-    types.identifier('count')
-  ));
+  const marker = types.callExpression(variable, [types.numericLiteral(id)]);
   locations.push({id, loc, tags, count: 0});
   return markAsInstrumented(marker);
 }

@@ -1,12 +1,15 @@
 /* eslint-disable no-undef, no-unused-vars */
 
 const VARIABLE = (context => {
+  const locations = JSON.parse(LOCATIONS);
   context[NAMESPACE] = context[NAMESPACE] || {};
-  const fileCoverage = context[NAMESPACE][FILEPATH] = {
+  context[NAMESPACE][FILEPATH] = {
     path: FILEPATH,
-    locations: LOCATIONS
+    locations
   };
-  return fileCoverage.locations;
+  return index => {
+    locations[index].count += 1;
+  };
 })(
   typeof global === 'undefined' ? window : global
 );

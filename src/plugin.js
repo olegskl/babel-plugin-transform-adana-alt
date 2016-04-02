@@ -2,6 +2,7 @@ import {util} from 'babel-core';
 import prelude from './prelude';
 import {setCoverageMeta} from './meta';
 import visitors from './visitors';
+import {fnv} from './hash';
 
 function shouldSkipFile({opts, file} = {}) {
   if (!file || !opts) { return false; }
@@ -15,9 +16,10 @@ function shouldSkipFile({opts, file} = {}) {
 
 function Program(path, state) {
   if (shouldSkipFile(state)) { return; }
+  const filenameHash = fnv(state.file.opts.filename);
   setCoverageMeta(state, {
     locations: [],
-    variable: path.scope.generateUidIdentifier('coverage')
+    variable: path.scope.generateUidIdentifier(filenameHash)
   });
   path.traverse(visitors, state);
   path.unshiftContainer('body', prelude(state));
