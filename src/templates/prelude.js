@@ -7,8 +7,9 @@ const VARIABLE = (context => {
     path: FILEPATH,
     locations
   };
-  return index => {
+  return (index, value) => {
     locations[index].count += 1;
+    return value;
   };
 })(
   typeof global === 'undefined' ? window : global

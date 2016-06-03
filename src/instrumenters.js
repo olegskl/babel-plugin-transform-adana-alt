@@ -5,18 +5,15 @@ export function isInstrumentableStatement({parentPath}) {
   return parentPath.isBlockStatement() || parentPath.isProgram();
 }
 
-// 42 ---> (++count[id].count, 42)
+// 42 ---> _increment(0, 42);
 export function instrumentExpression(path, state, tags = ['expression']) {
   const isEmptyNode = !path.node;
   const loc = isEmptyNode ? path.parent.loc : path.node.loc;
-  const marker = createMarker(state, {loc, tags});
   const node = isEmptyNode ? t.identifier('undefined') : path.node;
-  path.replaceWith(markAsInstrumented(
-    t.sequenceExpression([marker, node])
-  ));
+  path.replaceWith(createMarker(state, {loc, tags}, node));
 }
 
-// break; ---> ++count[0].count; break;
+// break; ---> _increment(0); break;
 export function instrumentStatement(path, state, tags = ['statement']) {
   if (!isInstrumentableStatement(path)) { return; }
   const loc = path.node.loc;
@@ -26,7 +23,7 @@ export function instrumentStatement(path, state, tags = ['statement']) {
   ));
 }
 
-// {} ---> { ++count; }
+// {} ---> { _increment(0); }
 export function instrumentBlock(container, path, state, tags = ['block']) {
   const loc = path.node.loc;
   const marker = createMarker(state, {loc, tags});
@@ -35,6 +32,7 @@ export function instrumentBlock(container, path, state, tags = ['block']) {
   ));
 }
 
+// {a: 42} ---> {['a']: 42}
 export function instrumentObjectProperty(path, state) {
   if (path.node.computed) { return; }
   const oldKey = path.get('key');
@@ -49,9 +47,7 @@ export function instrumentClassProperty(path, state, tags = ['statement', 'prope
   const value = path.get('value');
   const isEmptyNode = !value.node;
   const {loc} = isEmptyNode ? path.parent : path.node;
-  const marker = createMarker(state, {loc, tags});
   const node = isEmptyNode ? t.identifier('undefined') : value.node;
-  value.replaceWith(markAsInstrumented(
-    t.sequenceExpression([marker, node])
-  ));
+  const marker = createMarker(state, {loc, tags}, node);
+  value.replaceWith(marker);
 }

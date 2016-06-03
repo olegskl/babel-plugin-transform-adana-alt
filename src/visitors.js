@@ -28,11 +28,11 @@ function safeguardVisitors(visitors) {
 export default safeguardVisitors({
 
   // Source: 'ngInject';
-  // Instrumented: 'ngInject'; ++count;
+  // Instrumented: 'ngInject'; _increment(0);
   Directive(path, state) {
     const loc = path.node.loc;
     const marker = createMarker(state, {loc, tags: ['statement', 'directive']});
-    path.parentPath.unshiftContainer('body', markAsInstrumented(
+    path.insertAfter(markAsInstrumented(
       t.expressionStatement(marker)
     ));
   },
@@ -190,9 +190,9 @@ export default safeguardVisitors({
   },
 
   // Source: {['a'](){}}
-  // Instrumented: {[(++count, 'a')]: (++count, function a() { ++count; }})
+  // Instrumented: {[_increment(0, 'a')]: _increment(1, function a() { _increment(2); })}
   // Source: {a(){}}
-  // Instrumented: {a: (++count, function a() { ++count; }})
+  // Instrumented: {[_increment(3, 'a')]() { _increment(2); }}
   ObjectMethod(path, state) {
     instrumentBlock('body', path.get('body'), state, ['function']);
     instrumentObjectProperty(path, state);
